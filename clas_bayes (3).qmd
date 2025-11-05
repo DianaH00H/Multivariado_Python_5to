@@ -1,0 +1,173 @@
+---
+title: "Modulo 3: clasificadores de redes bayesianas"
+format: html
+editor: visual
+---
+
+```{r}
+library(tidyverse)
+```
+
+Creamos una base de datos para la(s) nueva(s) observación(es) considerando las diferentes clases.
+
+```{r}
+x_tilde = tibble(y = c("Class0", "Class1"),
+                 x1 = rep(0.4, 2), x2 = rep(1.5, 2))
+```
+
+```{r}
+data = read_csv("data/toy_bayes.csv")
+head(data)
+```
+
+Iniciaremos la estimación de nuestra red bayesiana con el nodo padre, es decir, la distribución prior de la variable de clase y. Para esto simplemente contamos el número de observaciones en cada clase y dividimos entre el total.
+
+```{r}
+prior = data |>
+            group_by(y) |>
+            summarise(n = n()) |>
+            mutate(prior_prob = n/sum(n))
+```
+
+```{r}
+prior
+```
+
+Realizamos un histograma junto con un kernel plot para visualizar la distribución de x1 en la clase 0.
+
+```{r}
+data |>
+    filter(y == "Class0") |>
+    ggplot(aes(x = x1, y = after_stat(density))) +
+    geom_histogram(color = "dodgerblue", fill = "slategray1", alpha = 0.4) +
+    geom_density(fill = "dodgerblue", color = NA, lwd = 1, alpha = 0.5) +
+    labs(x = expression(x[1]), y = "Density", title = expression(x[1] ~ "|" ~ y == 0)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold",
+                                    margin = margin(0, 0, 5, 0)),
+            axis.title.x = element_text(face = "bold"),
+            axis.title.y = element_text(face = "bold", angle = 90),
+            legend.title = element_text(hjust = 0.5, face = "bold"),
+            legend.text = element_text(hjust = 0.5),
+            strip.text = element_text(size = 14, hjust = 0.5, face = "bold",
+                                      margin = margin(2, 3, 3, 3)))
+```
+
+Realizamos un bar chart para visualizar la distribución de x3x3​ en la clase 0.
+
+```{r}
+data |>
+    filter(y == "Class0") |>
+    ggplot(aes(x = x3, y = after_stat(count/sum(count)))) +
+    geom_bar(color = "tomato1", fill = "tomato1", alpha = 0.4) +
+    labs(x = expression(x[3]), y = "Probability", title = expression(x[3] ~ "|" ~ y == 0)) +
+    theme_bw() +
+    theme(plot.title = element_text(hjust = 0.5, face = "bold",
+                                    margin = margin(0, 0, 5, 0)),
+            axis.title.x = element_text(face = "bold"),
+            axis.title.y = element_text(face = "bold", angle = 90),
+            legend.title = element_text(hjust = 0.5, face = "bold"),
+            legend.text = element_text(hjust = 0.5),
+            strip.text = element_text(size = 14, hjust = 0.5, face = "bold",
+                                      margin = margin(2, 3, 3, 3)))
+```
+
+```         
+La estimación de las densidades se realiza mediante la función density().
+
+Podemos acceder a los bandwidths mediante el operador $.
+
+Para cada clase, obtenemos los bandwidths de x1 y x2.
+```
+
+```{r}
+bws = data |>
+        group_by(y) |>                            ## Agrupamos por la etiqueta
+        summarise(bw1 = density(x1)$bw,  ## Extraemos los bandwidths
+                   bw2 = density(x2)$bw)
+```
+
+```{r}
+bws
+```
+
+```         
+Implementamos una función que calcule el kernel gaussiano.
+```
+
+```{r}
+K = function(x){
+    return(exp(-x^2/2)/sqrt(2*pi))
+}
+```
+
+Ahora, implementamos una función para calcular la densidad estimada usando ese kernel
+
+```{r}
+kernel = function(x, data, bw){
+    return(mean(K((x - data)/bw)/bw))
+}
+```
+
+```         
+Con esto tendríamos totalmente estimadas f1(x1∣y) y f2(x2∣y).
+
+Para estimar f3(x3∣y) basta con contar el número de observaciones en cada nivel de esta variable en cada clase y dividirlo entre el total.
+
+Por ejemplo, para la primera clase estimamos la probabilidad de cada uno de los niveles de x3.
+```
+
+```{r}
+data |>
+    filter(y == "class0") |>
+    group_by(x3) |>
+    summarise(n = n()) |>
+    mutate(prob = n/sum(n))
+```
+
+Creamos una tabla uniendo las nuevas observaciones con la tabla donde encontramos los bandwidths de x1x1​ y x2x2​ para cada clase usando la función left_join()
+
+```{r}
+num_probs = x_tilde |>
+                left_join(bws, by = "y")
+num_probs
+```
+
+Para cada clase, evaluamos el density kernel estimator en la nueva observación y seleccionamos solamente la clase y el resultado de f\^1(x~1∣y)f\^​1​(x~1​∣y) y f\^2(x~2∣y)f\^​2​(x~2​∣y)
+
+```{r}
+num_probs = num_probs |>
+                group_by(y) |>                                   ## Agrupamos por la etiqueta
+                summarise(kernel1 = kernel(x1, data$x1, bw1),                ## Calculamos los kernels
+                           kernel2 = kernel(x2, data$x2, bw2)) |>
+                select(y, kernel1, kernel2)  ## Seleccionamos sólo la etiqueta y los kernels
+num_probs
+```
+
+Para obtener f\^3(x~3∣y)=P(X3=Level1∣y)f\^​3​(x~3​∣y)=P(X3​=Level1∣y), simplemente contamos el número de observaciones donde x3=Level1x3​=Level1 para cada clase, y dividimos entre el total de observaciones en cada clase
+
+```{r}
+cat_probs = data |>
+                group_by(y, x3) |>        ## Realizamos la agrupación por la etiqueta y x3
+                summarise(n = n()) |>    ## Contamos el número de observaciones
+                group_by(y) |>        ## Agrupamos por la etiqueta
+                mutate(prob = n/sum(n)) |> ## Calculamos las probabilidades
+                filter(x3 == "Level1")           ## Seleccionamos sólo el caso cuando x3 = Level1
+
+cat_probs
+```
+
+Calculamos el denominador de la regla de Bayes sumando P(Y=k)f1(x~1∣y)f2(x~2∣y)f3(x~3∣y)P(Y=k)f1​(x~1​∣y)f2​(x~2​∣y)f3​(x~3​∣y) para cada clase.
+
+```{r}
+total = sum(prior$prior_prob * num_probs$kernel1 * num_probs$kernel2 * cat_probs$prob)
+total
+```
+
+```         
+Finalmente, obtenemos las probabilidades a posteriori para cada clase.
+```
+
+```{r}
+(prior$prior_prob * num_probs$kernel1 * num_probs$kernel2 * cat_probs$prob)/total
+```

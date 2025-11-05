@@ -1,0 +1,160 @@
+---
+title: "Ejemplo costco"
+format: 
+    html:
+        toc: true
+        fontsize: 1.25em
+        html-math-method: katex
+        embed-resources: true
+        self-contained-math: true
+        df-print: kable
+---
+```{python}
+import pandas as pd
+import seaborn as sns
+import matplotlib.pyplot as plt
+import scipy.stats as stats
+```
+```{python}
+costco = pd.read_csv("data/demand_costco.csv")
+costco.head()
+```
+
+
+Suponemos que la demanda es una v.a. Poisson con parámetro λ, pero ¿esto será cierto para los datos?
+
+Encontramos la frecuencia relativa de la demanda.
+
+```{python}
+freq_tab = costco["x"].value_counts(normalize = True).reset_index()
+```
+```{python}
+plt.figure(figsize = (7, 5))
+sns.barplot(data = freq_tab, x = "x", y = "proportion", color = "dodgerblue")
+plt.xlabel("Demanda")
+plt.ylabel("Proporción")
+plt.title("Demanda del producto")
+plt.show();
+```
+
+
+Supongamos que la demanda sí sigue una distribución Poisson, pero ¿cómo estimamos λ?
+
+    Máxima verosimilitud.
+
+    Estimador bayesiano.
+
+
+
+Se puede demostrar que el estimador máximo verosímil de una distribución Poisson es la media muestral, es decir, λ^=y^​.
+
+Estimamos λ.
+```{python}
+lambda_hat = costco['x'].mean()
+```
+
+¿Cómo sabemos si los datos sí siguen una distribución Poisson?
+
+Podemos realizar pruebas de bondad de ajuste o graficar QQ-plots.
+
+Gráficamente, las probabilidades empíricas deberían parecerse a las probabilidades teóricas.
+
+Creamos un vector con las probabilidades teóricas.
+
+```{python}
+probs = stats.poisson.pmf([0,1,2,3,4], lambda_hat)
+```
+
+Creamos una tabla de frecuencia con las probabilidades empíricas.
+```{python}
+freq_tab = costco['x'].value_counts(normalize= True).reset_index()
+```
+```{python}
+plt.figure(figsize = (7, 5))
+sns.barplot(data = freq_tab, x = "x", y = "proportion",
+            color = "dodgerblue", label = "Probabilidades empíricas")
+plt.xlabel("Demanda", fontsize = 14)
+plt.ylabel("Proporción", fontsize = 14)
+plt.title("Demanda del producto", fontsize = 16)
+
+for i, value in enumerate(probs[:-1]):
+    plt.vlines(i, 0, value, color = "#8EDCFB", lw = 1)
+    plt.plot(i, value, marker = "o", color = "#8EDCFB")
+
+plt.vlines(4, 0, probs[4], color = "#8EDCFB", lw = 1,
+           label = "Probabilidades teóricas")
+plt.plot(4, probs[4], marker = "o", color = "#8EDCFB")
+plt.legend(bbox_to_anchor = (1.62, 1), loc = "upper right", fontsize = 14)
+plt.show();
+```
+
+Realizamos una prueba Kolmogorov-Smirnov con ayuda de la función kstest() de scipy.stats para evaluar si es plausible que la demanda siga una distribución Poisson.
+```{python}
+KS_test = stats.kstest(costco['x'], stats.poisson(lambda_hat).cdf)
+```
+
+El p-value es muy pequeño, por lo que rechazaríamos la hipótesis nula.
+
+¡Esto es un error!
+
+
+
+Tenemos que recurrir a simulación Monte Carlo para estimar el p-value de la prueba.
+
+Extraemos la estadística de prueba observada.
+
+```{python}
+D_obs = KS_test.statistic
+```
+
+Inicializamos una distribución Poisson con el parámetro que estimamos de los datos.
+```{python}
+poisson_sim = stats.poisson(lambda_hat)
+```
+
+Obtenemos el tamaño de la muestra e inicializamos una lista vacía para guardar los resultados de la simulación.
+```{python}
+n = len(costco['x'])
+D_sim = []
+```
+
+Realizamos un ciclo for para simular, por ejemplo, 10,000 escenarios en los cuales se realiza una prueba Kolmogorov-Smirnov para una distribución Poisson estimando su parámetro de los datos.
+```{python}
+for i in range(10000):
+    ## Simulamos datos de la distribución hipotética
+    x_sim = poisson_sim.rvs(size = n)
+
+    ## Estimamos el parámetro de los datos simulados bajo la hipótesis nula
+    lambda_hat_sim = x_sim.mean()
+
+    ## Realizamos una prueba de Kolmogorov-Smirnov
+    ## y retenemos la estadística observada
+    D0 = stats.kstest(x_sim, stats.poisson(lambda_hat_sim).cdf).statistic
+
+    ## Guardamos el valor de la estadística en la lista
+    D_sim.append(D0)
+```
+
+Graficamos la distribución de la estadística simulada junto con la estadística observada.
+```{python}
+plt.figure(figsize = (7, 5))
+sns.histplot(D_sim, bins = 20, color = "dodgerblue")
+plt.vlines(D_obs, 0, 2000, color = "red", linewidth = 2)
+plt.show();
+```
+
+Para calcular el p-value usamos su estimación empírica.
+
+Estimamos el p-value.
+```{python}
+((D_sim >= D_obs).sum() + 1)/(len(D_sim)+1)
+```
+
+Ahora sí podemos decir con mayor seguridad que los datos siguen una distribución Poisson con parámetro λ^=0.95.
+
+```{python}
+p_00 = 1- stats.poisson.cdf(2, lambda_hat)
+p_01 = stats.poisson.pmf(2, lambda_hat)
+p_02 = stats.poisson.pmf(1, lambda_hat)
+p_03 = stats.poisson.pmf(0, lambda_hat)
+```

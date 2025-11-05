@@ -1,0 +1,297 @@
+---
+title: "maya"
+format: html
+---
+
+```{python}
+import numpy as np
+import matplotlib.pyplot as plt
+import os
+```
+
+```{python}
+folder = "../canela"
+height = 64
+width = 64
+```
+
+```{python}
+images = np.empty(shape = (4, height, width), dtype = "float")
+```
+```{python}
+#!pip install opencv-python
+```
+```{python}
+import cv2
+
+for i in range(1, 5):
+    img_path = os.path.join(folder, "canela" + str(i) + ".jpg")
+    img = cv2.imread(img_path)
+    image = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    resized_image = cv2.resize(image, (width, height))
+    images[i - 1, :, :] = resized_image
+```
+```{python}
+images.shape
+```
+```{python}
+plt.figure(figsize = (8, 8))
+for i in range(4):
+    plt.subplot(2, 2, i + 1)
+    plt.title("Canela " + str(i + 1))
+    plt.imshow(images[i], cmap = "gray")
+    plt.axis("off")
+```
+```{python}
+X = images.reshape(images.shape[0], -1)
+```
+```{python}
+X.shape
+```
+```{python}
+X_bar = X.mean(axis=0)
+```
+```{python}
+S = np.cov(X.T)
+```
+```{python}
+Lambda, Q = np.linalg.eig(S)
+```
+```{python}
+idx = Lambda.argsort()[::-1]
+Lambda = Lambda[idx]
+Q = Q[:, idx]
+```
+```{python}
+(Lambda/Lambda.sum()).cumsum()
+```
+```{python}
+q = 3
+E = Q[:, :q]
+
+```
+
+```{python}
+plt.figure(figsize = (10, 10))
+for i in range(3):
+    eigenface = E[:, i].reshape(64, 64).astype("float")
+    plt.subplot(1, 3, i + 1)
+    plt.title("EigenCanela " + str(i + 1))
+    plt.imshow(eigenface, cmap = "gray")
+    plt.axis("off")
+plt.show();
+```
+```{python}
+y = E.T @ (X - X_bar).T
+```
+```{python}
+X_hat = (E @ y).T + X_bar.T
+```
+
+```{python}
+plt.figure(figsize = (8, 8))
+for i in range(4):
+    eigenface = X_hat[i, :].reshape(64, 64).astype("float")
+    plt.subplot(2, 2, i + 1)
+    plt.title("Canela reconstruida " + str(i + 1))
+    plt.imshow(eigenface, cmap = "gray")
+    plt.axis("off")
+plt.show();
+```
+
+
+```{python}
+     
+
+(4-1)*Lambda[4:].sum()
+```
+
+```{python}
+R = np.array([[ 1.000,  0.290,  0.202, -0.055, -0.105, -0.252, -0.229,  0.058],
+              [ 0.290,  1.000,  0.415,  0.285, -0.376, -0.349, -0.164, -0.129],
+              [ 0.202,  0.415,  1.000,  0.419, -0.521, -0.441, -0.145, -0.076],
+              [-0.055,  0.285,  0.419,  1.000, -0.877, -0.076,  0.023, -0.131],
+              [-0.105, -0.376, -0.521, -0.877,  1.000,  0.206,  0.034,  0.151],
+              [-0.252, -0.349, -0.441, -0.076,  0.206,  1.000,  0.192,  0.077],
+              [-0.229, -0.164, -0.145,  0.023,  0.034,  0.192,  1.000,  0.423],
+              [ 0.058, -0.129, -0.076, -0.131,  0.151,  0.077,  0.423,  1.000]])
+```
+
+```{python}
+Upsilon = np.diag(np.array([0.371, 41.253, 1.935, 0.077, 0.071, 4.037, 2.732, 0.297]))
+```
+
+```{python}
+S = Upsilon @ R @ Upsilon
+```
+
+```{python}
+from sklearn.decomposition import PCA
+
+pca_sigma = PCA(n_components = None, svd_solver = "full")
+```
+
+```{python}
+pca_sigma_fit = pca_sigma.fit(S)
+```
+
+```{python}
+np.sqrt(pca_sigma_fit.explained_variance_)
+```
+
+```{python}
+prop_variance = pca_sigma_fit.explained_variance_ratio_
+```
+
+```{python}
+cumulative_prop = prop_variance.cumsum()
+```
+
+```{python}
+cumulative_prop
+```
+
+```{python}
+loadings = pca_sigma_fit.components_
+```
+
+```{python}
+loadings
+```
+
+```{python}
+pca_rho = PCA(n_components = None, svd_solver = "full")
+```
+
+```{python}
+pca_rho_fit = pca_rho.fit(R)
+```
+```{python}
+pca_rho_fit.explained_variance_
+```
+```{python}
+pca_rho_fit.explained_variance_ratio_.cumsum()
+```
+```{python}
+pca_rho_fit.components_
+```
+
+```{python}
+PC_values = np.arange(pca_rho_fit.n_components_) + 1
+plt.plot(PC_values, pca_rho_fit.explained_variance_ratio_, "o-",
+         linewidth = 2, color = "dodgerblue")
+plt.title("Scree plot")
+plt.xlabel("PC")
+plt.ylabel("Varianza explicada")
+plt.show();
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
+```{python}
+
+```
+
+```{python}
+
+```
+
+```{python}
+
+```
